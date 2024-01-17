@@ -20,7 +20,12 @@
 
 package org.cloudcoder.daemon.example;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.cloudcoder.daemon.IDaemon;
 
@@ -45,7 +50,11 @@ public class ExampleDaemon implements IDaemon {
 				try {
 					String command = commandQueue.take();
 					System.out.println("Received a command: " + command);
-					System.err.println("Same command, to stderr: " + command);
+					if ("healthCheck".equalsIgnoreCase(command)) {
+						performHealthCheck();
+					} else {
+						System.err.println("Same command, to stderr: " + command);
+					}
 				} catch (InterruptedException e) {
 					System.out.println("Worker thread interrupted, shutting down");
 				}
@@ -56,6 +65,8 @@ public class ExampleDaemon implements IDaemon {
 	private LinkedBlockingQueue<String> commandQueue;
 	private volatile boolean shutdown;
 	private Thread workerThread;
+
+	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 	
 	/**
 	 * Constructor.
@@ -64,6 +75,8 @@ public class ExampleDaemon implements IDaemon {
 		commandQueue = new LinkedBlockingQueue<String>();
 		shutdown = false;
 		workerThread = new Thread(new Worker());
+
+		scheduler.scheduleAtFixedRate(this::performHealthCheck, 0, 5, TimeUnit.SECONDS);
 	}
 	
 	@Override
@@ -100,5 +113,23 @@ public class ExampleDaemon implements IDaemon {
 			System.out.println("This should not happen");
 		}
 		System.out.println("Worker thread finished");
+	}
+
+	private void performHealthCheck() {
+		try {
+			// 시스템 정보를 검색하기 위해 Linux 명령어를 실행
+			Process process = Runtime.getRuntime().exec("top -b -n 1");
+			BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+			String line;
+			while ((line = reader.readLine()) != null) {
+				System.out.println(line);
+			}
+
+			process.waitFor();
+			reader.close();
+		} catch (Exception e) {
+			System.out.println("Error during health check: " + e.getMessage());
+		}
 	}
 }

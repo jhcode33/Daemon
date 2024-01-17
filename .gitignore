@@ -1,3 +1,5 @@
+/.idea
+/target
 /daemon*.jar
 /demo.jar
 /log.txt
